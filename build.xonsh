@@ -1,0 +1,85 @@
+#!/usr/bin/xonsh
+
+# init
+import datetime
+import os
+
+t_delta = datetime.timedelta(hours=9)
+JST = datetime.timezone(t_delta, 'JST')
+now = datetime.datetime.now(JST)
+
+repodir = os.getcwd()
+
+# build artex beta
+# check dirs
+artexroot = os.path.realpath("artexroot")
+if os.path.isdir(artexroot):
+    rm -fr @(artexroot)
+
+artexresources = os.path.realpath("artexresources")
+if not os.path.isdir(artexresources):
+    mkdir -p artexresources
+
+artexconfs = os.path.realpath("artexconfs")
+
+# create core directories
+print("--> Creating dirs")
+rootdirs = ["/etc", "/usr", "/var", "/dev", "/opt", "/mnt", "/home", "/run", "/sys", "/proc", "/tmp", "/media", "/srv", "/boot", "/root"]
+for dir in rootdirs:
+    mkdir -pv @(artexroot + dir)
+
+print("--> Creating dirs in /etc")
+etcdirs = ["/opt", "/x11", "/sgml", "/xml"]
+for dir in etcdirs:
+    mkdir -pv @(artexroot + "/etc" + dir)
+
+print("--> Creating dirs in /usr")
+usrdirs = ["/bin", "/include", "/lib", "/local", "/share", "/src"]
+for dir in usrdirs:
+    mkdir -pv @(artexroot + "/usr" + dir)
+
+print("--> Creating dirs in /var")
+vardirs = ["/cache", "/lib", "/lock", "/log", "/mail", "/run", "/spool", "/tmp"]
+for dir in vardirs:
+    mkdir -pv @(artexroot + "/var" + dir)
+
+print("--> Symlinking some dirs")
+cd artexroot
+ln -sv @("usr/bin",  "bin")
+ln -sv @("usr/lib",  "lib")
+cd usr
+ln -sv @("bin",  "sbin")
+cd ..
+ln -sv @("usr/sbin", "sbin")
+cd usr
+ln -sv @("lib",  "lib64")
+cd ..
+ln -sv @("usr/lib64","lib64")
+cd @(repodir)
+
+#print("--> Downloading resources")
+cd @(artexresources)
+print("--> Building busybox")
+git clone https://git.busybox.net/busybox busybox
+cd busybox
+cp @(artexconfs + "/bbconfig") .config
+make -j4
+make install @("CONFIG_PREFIX=" + artexroot)
+
+cd @(artexresources)
+print("--> Building linux-headers")
+git clone https://github.com/torvalds/linux linux
+cd linux
+make mrproper
+make headers
+find usr/include -type f ! -name '*.h' -delete
+cp -rv usr/include @(artexroot + "/usr")
+
+#cd @(artexresources)
+#print("--> Building Shadow")
+
+print("--> Copying initial configs")
+cp @(artexconfs + "/etc/passwd") @(artexroot + "/etc/passwd")
+cp @(artexconfs + "/etc/group") @(artexroot + "/etc/group")
+
+print("Build artex rolling ISO" + now.strftime('%Y%m%d'))
